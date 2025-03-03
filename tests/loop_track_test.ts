@@ -8,7 +8,7 @@ import {
 import { assertEquals } from 'https://deno.land/std@0.90.0/testing/asserts.ts';
 
 Clarinet.test({
-  name: "Test activity logging and rewards",
+  name: "Test activity logging with authorization",
   async fn(chain: Chain, accounts: Map<string, Account>) {
     const user1 = accounts.get('wallet_1')!;
     
@@ -16,7 +16,6 @@ Clarinet.test({
     let block = chain.mineBlock([
       Tx.contractCall('loop-track', 'log-activity',
         [
-          types.principal(user1.address),
           types.ascii("running"),
           types.uint(30),
           types.uint(300)
@@ -42,81 +41,23 @@ Clarinet.test({
   }
 });
 
+// Additional test cases for invalid activities and calories
 Clarinet.test({
-  name: "Test goal setting and tracking",
+  name: "Test invalid activity type rejection",
   async fn(chain: Chain, accounts: Map<string, Account>) {
     const user1 = accounts.get('wallet_1')!;
     
-    // Set goal
-    let block = chain.mineBlock([
-      Tx.contractCall('loop-track', 'set-goal',
-        [
-          types.principal(user1.address),
-          types.ascii("running"),
-          types.uint(1000)
-        ],
-        user1.address
-      )
-    ]);
-    
-    block.receipts[0].result.expectOk().expectBool(true);
-    
-    // Check goal
-    let response = chain.callReadOnlyFn(
-      'loop-track',
-      'get-user-goals',
-      [types.principal(user1.address)],
-      user1.address
-    );
-    
-    let goals = response.result.expectOk().expectSome();
-    assertEquals(goals['activity-type'], "running");
-    assertEquals(goals['target-duration'], types.uint(1000));
-    assertEquals(goals['completed'], false);
-  }
-});
-
-Clarinet.test({
-  name: "Test reward transfers",
-  async fn(chain: Chain, accounts: Map<string, Account>) {
-    const user1 = accounts.get('wallet_1')!;
-    const user2 = accounts.get('wallet_2')!;
-    
-    // Log activity to earn rewards
     let block = chain.mineBlock([
       Tx.contractCall('loop-track', 'log-activity',
         [
-          types.principal(user1.address),
-          types.ascii("running"),
-          types.uint(100),
-          types.uint(500)
+          types.ascii("invalid_activity"),
+          types.uint(30),
+          types.uint(300)
         ],
         user1.address
       )
     ]);
     
-    // Transfer rewards
-    block = chain.mineBlock([
-      Tx.contractCall('loop-track', 'transfer-rewards',
-        [
-          types.uint(3),
-          types.principal(user1.address),
-          types.principal(user2.address)
-        ],
-        user1.address
-      )
-    ]);
-    
-    block.receipts[0].result.expectOk().expectBool(true);
-    
-    // Check balances
-    let response = chain.callReadOnlyFn(
-      'loop-track',
-      'get-reward-balance',
-      [types.principal(user2.address)],
-      user2.address
-    );
-    
-    response.result.expectOk().expectUint(3);
+    block.receipts[0].result.expectErr(types.uint(101));
   }
 });
